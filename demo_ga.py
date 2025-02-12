@@ -71,3 +71,15 @@ def evaluate_config(title, pop_size=getDefault(pop_sizes), mut_prob=getDefault(m
 # evaluate different tournament sizes
 for tourn_size in tourn_sizes:
     evaluate_config("Tournament size = " + str(tourn_size), tourn_size=tourn_size)
+
+# evaluate different precissions
+for precission in precissions:
+    evaluate_config("Precission = " + str(precission), precission=precission)
+
+# evaluate different pop_sizes
+for pop_size in pop_sizes:
+    evaluate_config("Population size = " + str(pop_size), pop_size=pop_size)
+
+# evaluate different mut_probs
+for mut_prob in mut_probs:
+    evaluate_config("Mutation probability = " + str(mut_prob), mut_prob=mut_prob)

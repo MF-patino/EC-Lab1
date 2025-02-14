@@ -1,5 +1,9 @@
 import numpy as np
 
+import os
+img_path = "img/"
+if not os.path.exists(img_path):
+    os.makedirs(img_path)
 
 def schaffer(p):
     '''
@@ -22,10 +26,12 @@ import matplotlib.pyplot as plt
 
 best_ys = []
 repetitions = 30
-precissions = [0.25, 0.01, 0.0001]
-pop_sizes = [20, 100, 1000]
-mut_probs = [0.5, 0.1, 0.01, 0.001]
-tourn_sizes = [1, 3, 20]
+value_ranges = {
+    'precission': [0.25, 0.01, 0.001],
+    'pop_size': [20, 100, 1000],
+    'mut_prob': [0.5, 0.1, 0.01, 0.001],
+    'tourn_size': [1, 3, 20]
+}
 
 from math import floor
 
@@ -34,21 +40,21 @@ def getDefault(values):
     return values[int(floor(len(values)/2))]
 
 # evaluate the algorithm with a set of parameter values by running it multiple times and averaging the results
-def evaluate_config(title, pop_size=getDefault(pop_sizes), mut_prob=getDefault(mut_probs), precission=getDefault(precissions), tourn_size=getDefault(tourn_sizes)):
+def evaluate_config(title, config):
     # running the stochastic algorithm a minimum of 30 times per configuration
     # to calculate the average error at each generation
     avg_hist = 0
 
     for i in range(repetitions):
-        ga = GA(func=schaffer, n_dim=2, size_pop=pop_size, max_iter=100, prob_mut=mut_prob, lb=[-1, -1], ub=[1, 1], precision=precission)
+        ga = GA(func=schaffer, n_dim=2, size_pop=config['pop_size'], max_iter=100, prob_mut=config['mut_prob'], lb=[-1, -1], ub=[1, 1], precision=config['precission'])
 
         # by overriding the selection function of the algorithm it is possible to set different tournament sizes
         def select_f():
-            return selection_tournament_faster(ga, tourn_size)
+            return selection_tournament_faster(ga, config['tourn_size'])
         ga.selection = select_f
 
         best_x, best_y = ga.run()
-        print('best_x:', best_x, '\n', 'best_y:', best_y)
+        #print('best_x:', best_x, '\n', 'best_y:', best_y)
 
         best_ys.append(best_y)
 
@@ -58,28 +64,39 @@ def evaluate_config(title, pop_size=getDefault(pop_sizes), mut_prob=getDefault(m
     avg_hist /= repetitions
 
     avg, std = np.mean(best_ys), np.std(best_ys)
-    print(f"Avg: {avg}, Std: {std}")
 
     # %% Plot the result
     Y_history = pd.DataFrame(avg_hist)
     fig, ax = plt.subplots(2, 1)
-    fig.suptitle(title)
+    fig.suptitle(title + f", best Y = {avg:.2E}±{std:.2E}")
     ax[0].plot(Y_history.index, Y_history.values, '.', color='red')
     Y_history.min(axis=1).cummin().plot(kind='line')
-    plt.show()
 
-# evaluate different tournament sizes
-for tourn_size in tourn_sizes:
-    evaluate_config("Tournament size = " + str(tourn_size), tourn_size=tourn_size)
+    ax[0].set_title("Mean error of population per generation")
+    ax[1].set_title("Cummulative minimum")
 
-# evaluate different precissions
-for precission in precissions:
-    evaluate_config("Precission = " + str(precission), precission=precission)
+    fig.tight_layout()
 
-# evaluate different pop_sizes
-for pop_size in pop_sizes:
-    evaluate_config("Population size = " + str(pop_size), pop_size=pop_size)
+    plt.savefig(img_path + title.replace(' ', '_') + '.png')
+    #plt.show()
 
-# evaluate different mut_probs
-for mut_prob in mut_probs:
-    evaluate_config("Mutation probability = " + str(mut_prob), mut_prob=mut_prob)
+def sweepParameterValues(param_name):
+    config = {k: getDefault(values) for k, values in value_ranges.items()}
+
+    value_range = value_ranges[param_name]
+    default_value = getDefault(value_range)
+
+    # evaluate different values that are not the default one
+    for value in value_range:
+        # a simulation with all default values is run separately and once
+        if value == default_value:
+            continue
+
+        config[param_name] = value
+        evaluate_config(param_name + " = " + str(value), config)
+
+default_config = {k: getDefault(values) for k, values in value_ranges.items()}
+evaluate_config("Default configuration", default_config)
+
+for param_name in value_ranges.keys():
+    sweepParameterValues(param_name)

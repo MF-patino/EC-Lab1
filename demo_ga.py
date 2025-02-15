@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 best_ys = []
 repetitions = 30
 value_ranges = {
-    'precission': [0.25, 0.01, 0.001],
+    'precision': [0.25, 0.01, 0.001],
     'pop_size': [20, 100, 1000],
     'mut_prob': [0.5, 0.1, 0.01, 0.001],
     'tourn_size': [1, 3, 20]
@@ -39,14 +39,17 @@ from math import floor
 def getDefault(values):
     return values[int(floor(len(values)/2))]
 
+# iterate all value ranges picking the value in the middle
+getDefaultConfig = lambda value_ranges: {k: getDefault(values) for k, values in value_ranges.items()}
+
 # evaluate the algorithm with a set of parameter values by running it multiple times and averaging the results
-def evaluate_config(title, config):
+def evaluateConfig(title, config):
     # running the stochastic algorithm a minimum of 30 times per configuration
     # to calculate the average error at each generation
     avg_hist = 0
 
     for i in range(repetitions):
-        ga = GA(func=schaffer, n_dim=2, size_pop=config['pop_size'], max_iter=100, prob_mut=config['mut_prob'], lb=[-1, -1], ub=[1, 1], precision=config['precission'])
+        ga = GA(func=schaffer, n_dim=2, size_pop=config['pop_size'], max_iter=100, prob_mut=config['mut_prob'], lb=[-1, -1], ub=[1, 1], precision=config['precision'])
 
         # by overriding the selection function of the algorithm it is possible to set different tournament sizes
         def select_f():
@@ -73,7 +76,7 @@ def evaluate_config(title, config):
     Y_history.min(axis=1).cummin().plot(kind='line')
 
     ax[0].set_title("Mean error of population per generation")
-    ax[1].set_title("Cummulative minimum")
+    ax[1].set_title("Cumulative minimum")
 
     fig.tight_layout()
 
@@ -81,7 +84,7 @@ def evaluate_config(title, config):
     #plt.show()
 
 def sweepParameterValues(param_name):
-    config = {k: getDefault(values) for k, values in value_ranges.items()}
+    config = getDefaultConfig(value_ranges)
 
     value_range = value_ranges[param_name]
     default_value = getDefault(value_range)
@@ -93,10 +96,10 @@ def sweepParameterValues(param_name):
             continue
 
         config[param_name] = value
-        evaluate_config(param_name + " = " + str(value), config)
+        evaluateConfig(param_name + " = " + str(value), config)
 
-default_config = {k: getDefault(values) for k, values in value_ranges.items()}
-evaluate_config("Default configuration", default_config)
+default_config = getDefaultConfig(value_ranges)
+evaluateConfig("Default configuration", default_config)
 
 for param_name in value_ranges.keys():
     sweepParameterValues(param_name)

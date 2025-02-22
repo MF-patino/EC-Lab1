@@ -17,8 +17,17 @@ def schaffer(p):
     return 0.5 + (np.square(np.sin(part1)) - 0.5) / np.square(1 + 0.001 * part2)
 
 
+def rosenbrock(p):
+    sum = 0
+    for i in range(len(p)-1):
+        xi = p[i]
+        xii = p[i+1]
+        part = 100*(xii-xi**2)**2 + (xi-1)**2
+        sum+=part
+    return sum
+
 # %%
-from sko.GA import GA
+from sko.GA import GA, RCGA
 from sko.operators.selection import selection_tournament_faster
 
 import pandas as pd
@@ -49,7 +58,13 @@ def evaluateConfig(title, config):
     avg_hist = 0
 
     for i in range(repetitions):
-        ga = GA(func=schaffer, n_dim=2, size_pop=config['pop_size'], max_iter=100, prob_mut=config['mut_prob'], lb=[-1, -1], ub=[1, 1], precision=config['precision'])
+        n_dim = 4
+        bin_coding = False
+
+        if bin_coding:
+            ga = GA(func=rosenbrock, n_dim=n_dim, size_pop=config['pop_size'], max_iter=100, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim, precision=config['precision'])
+        else:
+            ga = RCGA(func=rosenbrock, n_dim=n_dim, size_pop=config['pop_size'], max_iter=100, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim)
 
         # by overriding the selection function of the algorithm it is possible to set different tournament sizes
         def select_f():
@@ -68,6 +83,9 @@ def evaluateConfig(title, config):
 
     avg, std = np.mean(best_ys), np.std(best_ys)
 
+    # avg of best fitness of independent runs
+    # in another color std dev
+    # include comments about best values of all runs
     # %% Plot the result
     Y_history = pd.DataFrame(avg_hist)
     fig, ax = plt.subplots(2, 1)
@@ -76,12 +94,12 @@ def evaluateConfig(title, config):
     Y_history.min(axis=1).cummin().plot(kind='line')
 
     ax[0].set_title("Mean error of population per generation")
-    ax[1].set_title("Cumulative minimum")
+    ax[1].set_title("Lowest error obtained until that point in time")
 
     fig.tight_layout()
 
     plt.savefig(img_path + title.replace(' ', '_') + '.png')
-    #plt.show()
+    plt.show()
 
 def sweepParameterValues(param_name):
     config = getDefaultConfig(value_ranges)

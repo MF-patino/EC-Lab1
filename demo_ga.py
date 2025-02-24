@@ -2,15 +2,8 @@ import numpy as np
 
 import os
 img_path = "img/"
-if not os.path.exists(img_path):
-    os.makedirs(img_path)
 
 def schaffer(p):
-    '''
-    This function has plenty of local minimum, with strong shocks
-    global minimum at (0,0) with value 0
-    https://en.wikipedia.org/wiki/Test_functions_for_optimization
-    '''
     x1, x2 = p
     part1 = np.square(x1) - np.square(x2)
     part2 = np.square(x1) + np.square(x2)
@@ -26,7 +19,6 @@ def rosenbrock(p):
         sum+=part
     return sum
 
-# %%
 from sko.GA import GA, RCGA
 from sko.operators.selection import selection_tournament_faster
 
@@ -42,6 +34,36 @@ value_ranges = {
     'tourn_size': [1, 3, 20]
 }
 
+problem1 = {
+    'name': "schaffer_bin",
+    'n_dim': 2,
+    'bin_coding': True,
+    'func': schaffer
+}
+
+problem2 = {
+    'name': "schaffer_real",
+    'n_dim': 2,
+    'bin_coding': False,
+    'func': schaffer
+}
+
+problem3 = {
+    'name': "rosenbrock_bin",
+    'n_dim': 4,
+    'bin_coding': True,
+    'func': rosenbrock
+}
+
+problem4 = {
+    'name': "rosenbrock_real",
+    'n_dim': 4,
+    'bin_coding': False,
+    'func': rosenbrock
+}
+
+problems = [problem1, problem2]
+
 from math import floor
 
 # default value is the one in the middle of the array of different parameter values to test
@@ -52,19 +74,19 @@ def getDefault(values):
 getDefaultConfig = lambda value_ranges: {k: getDefault(values) for k, values in value_ranges.items()}
 
 # evaluate the algorithm with a set of parameter values by running it multiple times and averaging the results
-def evaluateConfig(title, config):
+def evaluateConfig(title, config, problem):
     # running the stochastic algorithm a minimum of 30 times per configuration
     # to calculate the average error at each generation
-    avg_hist = 0
+    generations = 100
+    bestY_hist = np.zeros((generations, repetitions))
 
-    for i in range(repetitions):
-        n_dim = 4
-        bin_coding = False
+    for r in range(repetitions):
+        n_dim = problem['n_dim']
 
-        if bin_coding:
-            ga = GA(func=rosenbrock, n_dim=n_dim, size_pop=config['pop_size'], max_iter=100, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim, precision=config['precision'])
+        if problem['bin_coding']:
+            ga = GA(func=problem['func'], n_dim=n_dim, size_pop=config['pop_size'], max_iter=generations, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim, precision=config['precision'])
         else:
-            ga = RCGA(func=rosenbrock, n_dim=n_dim, size_pop=config['pop_size'], max_iter=100, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim)
+            ga = RCGA(func=problem['func'], n_dim=n_dim, size_pop=config['pop_size'], max_iter=generations, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim)
 
         # by overriding the selection function of the algorithm it is possible to set different tournament sizes
         def select_f():
@@ -77,35 +99,43 @@ def evaluateConfig(title, config):
         best_ys.append(best_y)
 
         # mean of the whole population performance at each generation is computed
-        avg_hist = avg_hist + np.mean(ga.all_history_Y, axis=1)
+        bestY_hist[:,r] = np.min(ga.all_history_Y, axis=1)
 
-    avg_hist /= repetitions
-
-    avg, std = np.mean(best_ys), np.std(best_ys)
+    avg, std, bestY = np.mean(best_ys), np.std(best_ys), np.min(best_ys)
 
     # avg of best fitness of independent runs
     # in another color std dev
     # include comments about best values of all runs
     # %% Plot the result
+    avg_hist = np.mean(bestY_hist, axis=1)
+    std_hist = np.std(bestY_hist, axis=1)
+
     Y_history = pd.DataFrame(avg_hist)
     fig, ax = plt.subplots(2, 1)
-    fig.suptitle(title + f", best Y = {avg:.2E}±{std:.2E}")
-    ax[0].plot(Y_history.index, Y_history.values, '.', color='red')
+    fig.suptitle(title + f", best Y = {bestY:.2E} ({avg:.2E}±{std:.2E})")
+    ax[0].plot(Y_history.index, Y_history.values, '.', color='red', label='Mean lowest error')
     Y_history.min(axis=1).cummin().plot(kind='line')
 
-    ax[0].set_title("Mean error of population per generation")
-    ax[1].set_title("Lowest error obtained until that point in time")
+    Y_std = pd.DataFrame(std_hist)
+    ax[0].plot(Y_std.index, Y_std.values, color='orange', label='Standard deviation')
+    ax[0].legend()
+
+    ax[0].set_title("Mean of lowest error of population per generation")
+    ax[1].set_title("Lowest error obtained until each generation")
 
     fig.tight_layout()
 
-    plt.savefig(img_path + title.replace(' ', '_') + '.png')
-    plt.show()
+    plt.savefig(problem['name'] + '_' + img_path + title.replace(' ', '_') + '.png')
+    #plt.show()
 
-def sweepParameterValues(param_name):
+    return bestY, avg, std
+
+def sweepParameterValues(param_name, problem):
     config = getDefaultConfig(value_ranges)
 
     value_range = value_ranges[param_name]
     default_value = getDefault(value_range)
+    vals = []
 
     # evaluate different values that are not the default one
     for value in value_range:
@@ -114,10 +144,55 @@ def sweepParameterValues(param_name):
             continue
 
         config[param_name] = value
-        evaluateConfig(param_name + " = " + str(value), config)
+        metrics = evaluateConfig(param_name + " = " + str(value), config, problem)
+        vals.append(metrics)
 
-default_config = getDefaultConfig(value_ranges)
-evaluateConfig("Default configuration", default_config)
+    return vals
 
-for param_name in value_ranges.keys():
-    sweepParameterValues(param_name)
+def fullEval(problem, table1, table2):
+    default_config = getDefaultConfig(value_ranges)
+    dBest, dAvg, dStd = evaluateConfig("Default configuration", default_config, problem)
+
+    for param_name in value_ranges.keys():
+        # skip sweep of precision when using real coding
+        if param_name == 'precision' and not problem['bin_coding']:
+            continue
+
+        vals = sweepParameterValues(param_name, problem)
+        (lBest, lAvg, lStd), (hBest, hAvg, hStd) = vals[0], vals[1]
+        latexName = param_name.replace('_', '\\_')
+
+        table1 += f"""{latexName} & {lBest:.2E} & {dBest:.2E} & {hBest:.2E} \\\\
+    \\hline\n"""
+        table2 += f"""{latexName} & {lAvg:.2E}±{lStd:.2E} & {dAvg:.2E}±{dStd:.2E} & {hAvg:.2E}±{hStd:.2E} \\\\
+    \\hline\n"""
+
+    tabEnd = "\\end{tabular}\\end{center}"
+    table1 += tabEnd; table2 += tabEnd
+
+    return table1, table2
+
+tableHeader1 = """\\begin{center}
+\\begin{tabular}{ |p{1.5cm}|c|c|c| }
+ \\hline
+ & \\multicolumn{3}{|c|}{Best error}\\\\
+  \\hline
+ Value & Lower & Default & Higher \\\\
+  \\hline\n"""
+
+tableHeader2 = """\\begin{center}
+\\begin{tabular}{ |p{1.5cm}|c|c|c| }
+ \\hline
+ & \\multicolumn{3}{|c|}{Average lowest error}\\\\
+  \\hline
+ Value & Lower & Default & Higher \\\\
+  \\hline\n"""
+
+for prob in problems:
+    if not os.path.exists(prob['name'] + '_' + img_path):
+        os.makedirs(prob['name'] + '_' + img_path)
+    table1, table2 = fullEval(prob, tableHeader1, tableHeader2)
+    print(f"Tables for problem {prob['name']}:")
+    print(table1)
+    print(table2)
+

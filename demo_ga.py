@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import spatial
 
 import os
 img_path = "img/"
@@ -21,6 +22,8 @@ def rosenbrock(p):
 
 from sko.GA import GA, RCGA
 from sko.operators.selection import selection_tournament_faster
+from sko.PSO import PSO
+from sko.PSO import PSO_TSP
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -34,8 +37,16 @@ value_ranges = {
     'tourn_size': [1, 3, 20]
 }
 
+value_ranges = {
+    'pop_size': [20, 100, 1000],
+    'w': [0.5, 0.1, 0.01, 0.001],
+    'c1': [1, 3, 20],
+    'c2': [1, 3, 20]
+}
+
 problem1 = {
     'name': "schaffer_bin",
+    'type': "non_pso",
     'n_dim': 2,
     'bin_coding': True,
     'func': schaffer
@@ -43,6 +54,7 @@ problem1 = {
 
 problem2 = {
     'name': "schaffer_real",
+    'type': "non_pso",
     'n_dim': 2,
     'bin_coding': False,
     'func': schaffer
@@ -50,6 +62,7 @@ problem2 = {
 
 problem3 = {
     'name': "rosenbrock_bin",
+    'type': "non_pso",
     'n_dim': 4,
     'bin_coding': True,
     'func': rosenbrock
@@ -57,12 +70,46 @@ problem3 = {
 
 problem4 = {
     'name': "rosenbrock_real",
+    'type': "non_pso",
     'n_dim': 4,
     'bin_coding': False,
     'func': rosenbrock
 }
 
-problems = [problem1, problem2]
+problem5 = {
+    'name': "schaffer_pso",
+    'type': "pso",
+    'n_dim': 3,
+    'func': schaffer
+}
+
+problem6 = {
+    'name': "rosenbrock_pso",
+    'type': "pso",
+    'n_dim': 3,
+    'func': rosenbrock
+}
+
+problem7 = {
+    'name': "tsp_pso",
+    'type': "pso_tsp",
+    'n_dim': 3
+}
+
+problems = [problem2]
+
+
+num_points = 40
+
+points_coordinate = np.random.rand(num_points, 2)  # generate coordinate of points
+distance_matrix = spatial.distance.cdist(points_coordinate, points_coordinate, metric='euclidean')
+
+def cal_total_distance(routine):
+    '''The objective function. input routine, return total distance.
+    cal_total_distance(np.arange(num_points))
+    '''
+    num_points, = routine.shape
+    return sum([distance_matrix[routine[i % num_points], routine[(i + 1) % num_points]] for i in range(num_points)])
 
 from math import floor
 
@@ -83,23 +130,38 @@ def evaluateConfig(title, config, problem):
     for r in range(repetitions):
         n_dim = problem['n_dim']
 
-        if problem['bin_coding']:
+        if problem['type'] == 'pso':
+            w = config['w']; c1 = config['c1']; c2 = config['c2']
+            assert((1 > w) and (w > 0.5*(c1+c2)))
+            pso = PSO(func=problem['func'], n_dim=n_dim, pop=config['pop_size'], max_iter=generations, lb=[0, -1, 0.5], ub=[1, 1, 1], w=w, c1=c1, c2=c2)
+        else if problem['type'] == 'pso_tsp':
+            w = config['w']; c1 = config['c1']; c2 = config['c2']
+            assert(1 > w and w > 0.5*(c1+c2))
+            pso_tsp = PSO_TSP(func=cal_total_distance, n_dim=num_points, size_pop=config['pop_size'], max_iter=generations, w=w, c1=c1, c2=c2)
+        else if problem['bin_coding']:
             ga = GA(func=problem['func'], n_dim=n_dim, size_pop=config['pop_size'], max_iter=generations, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim, precision=config['precision'])
         else:
             ga = RCGA(func=problem['func'], n_dim=n_dim, size_pop=config['pop_size'], max_iter=generations, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim)
 
-        # by overriding the selection function of the algorithm it is possible to set different tournament sizes
-        def select_f():
-            return selection_tournament_faster(ga, config['tourn_size'])
-        ga.selection = select_f
+        if problem['type'][:3] = 'pso':
+            pso.run()
+            best_x = pso.gbest_x; best_y = pso.gbest_y
 
-        best_x, best_y = ga.run()
+            Y_history = pso.gbest_y_hist
+        else:
+            # by overriding the selection function of the algorithm it is possible to set different tournament sizes
+            def select_f():
+                return selection_tournament_faster(ga, config['tourn_size'])
+            ga.selection = select_f
+
+            best_x, best_y = ga.run()
+            Y_history = ga.all_history_Y
         #print('best_x:', best_x, '\n', 'best_y:', best_y)
 
         best_ys.append(best_y)
 
         # mean of the whole population performance at each generation is computed
-        bestY_hist[:,r] = np.min(ga.all_history_Y, axis=1)
+        bestY_hist[:,r] = np.min(Y_history, axis=1)
 
     avg, std, bestY = np.mean(best_ys), np.std(best_ys), np.min(best_ys)
 

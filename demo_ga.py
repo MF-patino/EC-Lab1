@@ -62,7 +62,7 @@ problem4 = {
     'func': rosenbrock
 }
 
-problems = [problem1, problem2]
+problems = [problem3, problem4]
 
 from math import floor
 
@@ -192,7 +192,7 @@ for prob in problems:
     if not os.path.exists(prob['name'] + '_' + img_path):
         os.makedirs(prob['name'] + '_' + img_path)
     table1, table2 = fullEval(prob, tableHeader1, tableHeader2)
-    print(f"Tables for problem {prob['name']}:")
+    print(f"\nTables for problem {prob['name'].replace('_', '\\_')}:\n")
     print(table1)
     print(table2)
 

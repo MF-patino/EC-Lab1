@@ -209,7 +209,7 @@ class PSO(SkoBase):
 
 class PSO_TSP(SkoBase):
     def __init__(self, func, n_dim, size_pop=50, max_iter=200, w=0.8, c1=0.1, c2=0.1):
-        self.func = func_transformer(func)
+        self.func = func_transformer(func, 2)
         self.func_raw = func
         self.n_dim = n_dim
         self.size_pop = size_pop

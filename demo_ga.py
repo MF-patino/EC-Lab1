@@ -39,7 +39,7 @@ value_ranges = {
 
 value_ranges = {
     'pop_size': [20, 100, 1000],
-    'w': [0.5, 0.1, 0.01, 0.001],
+    'w': [0.99, 0.8, 0.25, 0.01],
     'c1': [1, 3, 20],
     'c2': [1, 3, 20]
 }
@@ -132,11 +132,13 @@ def evaluateConfig(title, config, problem):
 
         if problem['type'] == 'pso':
             w = config['w']; c1 = config['c1']; c2 = config['c2']
-            assert((1 > w) and (w > 0.5*(c1+c2)))
+            threshold = (c1+c2)/2 - 1
+            assert((1 > w) and (w > threshold) and (threshold >= 0))
             pso = PSO(func=problem['func'], n_dim=n_dim, pop=config['pop_size'], max_iter=generations, lb=[0, -1, 0.5], ub=[1, 1, 1], w=w, c1=c1, c2=c2)
         else if problem['type'] == 'pso_tsp':
             w = config['w']; c1 = config['c1']; c2 = config['c2']
-            assert(1 > w and w > 0.5*(c1+c2))
+            threshold = (c1+c2)/2 - 1
+            assert((1 > w) and (w > threshold) and (threshold >= 0))
             pso_tsp = PSO_TSP(func=cal_total_distance, n_dim=num_points, size_pop=config['pop_size'], max_iter=generations, w=w, c1=c1, c2=c2)
         else if problem['bin_coding']:
             ga = GA(func=problem['func'], n_dim=n_dim, size_pop=config['pop_size'], max_iter=generations, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim, precision=config['precision'])

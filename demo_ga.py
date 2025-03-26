@@ -37,11 +37,11 @@ value_ranges = {
     'tourn_size': [1, 3, 20]
 }
 
-value_ranges = {
+value_ranges_pso = {
     'pop_size': [20, 100, 1000],
-    'w': [0.5, 0.1, 0.01, 0.001],
-    'c1': [1, 3, 20],
-    'c2': [1, 3, 20]
+    'w': [2., 0.8, 0.01],
+    'c1': [1., 0.1, 0.5],
+    'c2': [1., 0.1, 0.5]
 }
 
 problem1 = {
@@ -79,14 +79,14 @@ problem4 = {
 problem5 = {
     'name': "schaffer_pso",
     'type': "pso",
-    'n_dim': 3,
+    'n_dim': 2,
     'func': schaffer
 }
 
 problem6 = {
     'name': "rosenbrock_pso",
     'type': "pso",
-    'n_dim': 3,
+    'n_dim': 4,
     'func': rosenbrock
 }
 
@@ -96,7 +96,7 @@ problem7 = {
     'n_dim': 3
 }
 
-problems = [problem2]
+problems = [problem7]
 
 
 num_points = 40
@@ -132,18 +132,18 @@ def evaluateConfig(title, config, problem):
 
         if problem['type'] == 'pso':
             w = config['w']; c1 = config['c1']; c2 = config['c2']
-            assert((1 > w) and (w > 0.5*(c1+c2)))
-            pso = PSO(func=problem['func'], n_dim=n_dim, pop=config['pop_size'], max_iter=generations, lb=[0, -1, 0.5], ub=[1, 1, 1], w=w, c1=c1, c2=c2)
-        else if problem['type'] == 'pso_tsp':
+            #assert((1 > w) and (w > 0.5*(c1+c2)))
+            pso = PSO(func=problem['func'], n_dim=n_dim, pop=config['pop_size'], max_iter=generations, lb=[-1]*n_dim, ub=[1]*n_dim, w=w, c1=c1, c2=c2)
+        elif problem['type'] == 'pso_tsp':
             w = config['w']; c1 = config['c1']; c2 = config['c2']
-            assert(1 > w and w > 0.5*(c1+c2))
-            pso_tsp = PSO_TSP(func=cal_total_distance, n_dim=num_points, size_pop=config['pop_size'], max_iter=generations, w=w, c1=c1, c2=c2)
-        else if problem['bin_coding']:
+            #assert((1 > w) and (w > 0.5*(c1+c2)))
+            pso = PSO_TSP(func=cal_total_distance, n_dim=num_points, size_pop=config['pop_size'], max_iter=generations, w=w, c1=c1, c2=c2)
+        elif problem['bin_coding']:
             ga = GA(func=problem['func'], n_dim=n_dim, size_pop=config['pop_size'], max_iter=generations, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim, precision=config['precision'])
         else:
             ga = RCGA(func=problem['func'], n_dim=n_dim, size_pop=config['pop_size'], max_iter=generations, prob_mut=config['mut_prob'], lb=[-1]*n_dim, ub=[1]*n_dim)
 
-        if problem['type'][:3] = 'pso':
+        if problem['type'][:3] == 'pso':
             pso.run()
             best_x = pso.gbest_x; best_y = pso.gbest_y
 
@@ -188,11 +188,10 @@ def evaluateConfig(title, config, problem):
     fig.tight_layout()
 
     plt.savefig(problem['name'] + '_' + img_path + title.replace(' ', '_') + '.png')
-    #plt.show()
 
     return bestY, avg, std
 
-def sweepParameterValues(param_name, problem):
+def sweepParameterValues(param_name, problem, value_ranges):
     config = getDefaultConfig(value_ranges)
 
     value_range = value_ranges[param_name]
@@ -212,15 +211,20 @@ def sweepParameterValues(param_name, problem):
     return vals
 
 def fullEval(problem, table1, table2):
-    default_config = getDefaultConfig(value_ranges)
+    if problem['type'][:3] == 'pso':
+        val_ranges = value_ranges_pso
+    else:
+        val_ranges = value_ranges
+
+    default_config = getDefaultConfig(val_ranges)
     dBest, dAvg, dStd = evaluateConfig("Default configuration", default_config, problem)
 
-    for param_name in value_ranges.keys():
+    for param_name in val_ranges.keys():
         # skip sweep of precision when using real coding
         if param_name == 'precision' and not problem['bin_coding']:
             continue
 
-        vals = sweepParameterValues(param_name, problem)
+        vals = sweepParameterValues(param_name, problem, val_ranges)
         (lBest, lAvg, lStd), (hBest, hAvg, hStd) = vals[0], vals[1]
         latexName = param_name.replace('_', '\\_')
 
